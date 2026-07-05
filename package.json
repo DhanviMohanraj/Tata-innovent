@@ -1,0 +1,13 @@
+{
+  "name": "pulsedrive",
+  "version": "1.0.0",
+  "description": "PulseDrive - Edge AI Vehicle Health & Predictive Maintenance",
+  "main": "index.html",
+  "scripts": {
+    "dev": "http-server -p 3000"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}
