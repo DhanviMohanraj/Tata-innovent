@@ -1,0 +1,2166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PulseDrive - Vehicle Health & Predictive Maintenance</title>
+  <!-- SEO Tags -->
+  <meta name="description" content="PulseDrive: A premium, production-quality vehicle telemetry dashboard for predictive maintenance, driving analytics, and digital twin status.">
+  <meta name="author" content="PulseDrive OS">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Manrope:wght@300;400;500;600;700;800&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+  
+  <!-- React & ReactDOM CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  
+  <!-- Babel for JSX Compilation in browser (CORS-friendly for local opening) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brandDark: '#080B12',
+            brandCard: '#121722',
+            brandCardGlow: 'rgba(18, 23, 34, 0.75)',
+            brandCyan: '#00E5FF',
+            brandGreen: '#22C55E',
+            brandAmber: '#F59E0B',
+            brandRed: '#EF4444',
+            textSecondary: '#94A3B8',
+          },
+          fontFamily: {
+            sans: ['Manrope', 'Inter', 'sans-serif'],
+            mono: ['Orbitron', 'monospace'],
+          },
+          boxShadow: {
+            glowCyan: '0 0 15px rgba(0, 229, 255, 0.45)',
+            glowGreen: '0 0 15px rgba(34, 197, 94, 0.45)',
+            glowAmber: '0 0 15px rgba(245, 158, 11, 0.45)',
+            glowRed: '0 0 20px rgba(239, 68, 68, 0.65)',
+            glass: '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style type="text/css">
+    /* Glassmorphism Classes */
+    .glass-panel {
+      background: rgba(18, 23, 34, 0.7);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glass-panel-heavy {
+      background: rgba(8, 11, 18, 0.9);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .glass-input {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #FFFFFF;
+      transition: all 0.3s ease;
+    }
+    .glass-input:focus {
+      outline: none;
+      border-color: #00E5FF;
+      box-shadow: 0 0 10px rgba(0, 229, 255, 0.3);
+      background: rgba(255, 255, 255, 0.06);
+    }
+    
+    /* Scrollbar Styling */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(8, 11, 18, 0.5);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(0, 229, 255, 0.5);
+    }
+
+    /* Custom Animations */
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 0.6; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.03); }
+    }
+    .animate-pulse-glow {
+      animation: pulseGlow 2s infinite ease-in-out;
+    }
+    
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-4px); }
+    }
+    .animate-float {
+      animation: float 4s infinite ease-in-out;
+    }
+
+    /* Pulse wave effect for sensors */
+    .ping-slow {
+      animation: ping 2.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+    }
+  </style>
+</head>
+<body class="bg-brandDark text-white font-sans antialiased overflow-x-hidden relative min-h-screen">
+  
+  <div id="root"></div>
+
+  <!-- React Source Code -->
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useMemo, createContext, useContext } = React;
+
+    // --- Helper Component: SVG Icons ---
+    const Icon = ({ name, className = "w-5 h-5", strokeWidth = 2 }) => {
+      const paths = {
+        home: (
+          <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+        ),
+        twin: (
+          <>
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            <path d="M12 8v8M9 12h6" />
+          </>
+        ),
+        planner: (
+          <>
+            <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
+            <line x1="16" x2="16" y1="2" y2="6" />
+            <line x1="8" x2="8" y1="2" y2="6" />
+            <line x1="3" x2="21" y1="10" y2="10" />
+            <path d="m9 16 2 2 4-4" />
+          </>
+        ),
+        mechanic: (
+          <>
+            <path d="M12 8V4H8" />
+            <rect width="16" height="12" x="4" y="8" rx="2" />
+            <path d="M2 14h2M20 14h2M15 13v2M9 13v2" />
+          </>
+        ),
+        settings: (
+          <>
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+            <circle cx="12" cy="12" r="3" />
+          </>
+        ),
+        battery: (
+          <>
+            <rect width="16" height="10" x="2" y="7" rx="2" ry="2" />
+            <line x1="22" x2="22" y1="11" y2="13" />
+          </>
+        ),
+        shield: (
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        ),
+        alertTriangle: (
+          <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+        ),
+        alertCircle: (
+          <>
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" x2="12" y1="8" y2="12" />
+            <line x1="12" x2="12.01" y1="16" y2="16" />
+          </>
+        ),
+        thermometer: (
+          <path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z" />
+        ),
+        zap: (
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+        ),
+        gauge: (
+          <>
+            <path d="m12 14 4-4" />
+            <path d="M3.34 19a10 10 0 1 1 17.32 0" />
+          </>
+        ),
+        activity: (
+          <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+        ),
+        user: (
+          <>
+            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </>
+        ),
+        cloud: (
+          <path d="M17.5 19A4.5 4.5 0 0 0 22 14.5c0-2.3-1.6-4.3-4-4.8a6.5 6.5 0 0 0-12.7-1C3 9.5 1 11.7 1 14.5A4.5 4.5 0 0 0 5.5 19z" />
+        ),
+        sun: (
+          <>
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+          </>
+        ),
+        bell: (
+          <>
+            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+          </>
+        ),
+        award: (
+          <>
+            <circle cx="12" cy="8" r="7" />
+            <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
+          </>
+        ),
+        checkCircle: (
+          <>
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </>
+        ),
+        chevronRight: (
+          <path d="m9 18 6-6-6-6" />
+        ),
+        send: (
+          <>
+            <line x1="22" x2="11" y1="2" y2="13" />
+            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+          </>
+        ),
+        mapPin: (
+          <>
+            <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+            <circle cx="12" cy="10" r="3" />
+          </>
+        ),
+        info: (
+          <>
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" x2="12" y1="16" y2="12" />
+            <line x1="12" x2="12.01" y1="8" y2="8" />
+          </>
+        ),
+        play: (
+          <polygon points="5 3 19 12 5 21 5 3" />
+        ),
+        refreshCw: (
+          <>
+            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path d="M3 3v5h5M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+            <path d="M16 16h5v5" />
+          </>
+        ),
+        alertOctagon: (
+          <polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2" />
+        )
+      };
+
+      const pathContent = paths[name] || <circle cx="12" cy="12" r="10" />;
+      
+      return (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={className}
+        >
+          {pathContent}
+        </svg>
+      );
+    };
+
+    // --- State Simulator Engine (React Context) ---
+    const SimulationContext = createContext();
+
+    const SimulationProvider = ({ children }) => {
+      const [activeTab, setActiveTab] = useState('health');
+      const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+      
+      // Simulation States: 'normal' | 'warning' | 'critical'
+      const [simMode, setSimMode] = useState('normal'); 
+      const [isSimRunning, setIsSimRunning] = useState(true);
+      const [simTime, setSimTime] = useState(0);
+
+      // Selected Component in Digital Twin
+      const [selectedComponent, setSelectedComponent] = useState(null);
+
+      // Core Vehicle Data
+      const [telemetry, setTelemetry] = useState({
+        speed: 72,
+        rpm: 2450,
+        batterySoc: 87,
+        batteryHealth: 98,
+        engineTemp: 86,
+        coolantLevel: 94,
+        coolantTemp: 81,
+        oilPressure: 45,
+        brakeWear: 18,
+        motorEfficiency: 96,
+        tirePressureFL: 33,
+        tirePressureFR: 33,
+        tirePressureRL: 34,
+        tirePressureRR: 34,
+        healthScore: 96,
+        riskScore: 8,
+        remainingLife: 145, // in days
+        repairCost: 3200 // in INR
+      });
+
+      // Telemetry Logs for custom SVG Live Charts
+      const [telemetryHistory, setTelemetryHistory] = useState({
+        engineTemp: Array.from({length: 15}, (_, i) => ({ val: 84 + Math.sin(i)*2, time: i })),
+        coolantTemp: Array.from({length: 15}, (_, i) => ({ val: 79 + Math.sin(i)*1.5, time: i })),
+        rpm: Array.from({length: 15}, (_, i) => ({ val: 2400 + Math.random()*100, time: i })),
+        speed: Array.from({length: 15}, (_, i) => ({ val: 70 + Math.random()*5, time: i })),
+        efficiency: Array.from({length: 15}, (_, i) => ({ val: 95 + Math.sin(i/2)*1, time: i }))
+      });
+
+      // Quick Stats
+      const stats = {
+        distance: 142.8,
+        energyCons: 145, // Wh/km
+        carbonSaved: 18.4, // kg
+        tripDuration: '2h 15m',
+        drivingScore: 92,
+        ecoDriving: 94
+      };
+
+      // Notifications/Alerts
+      const [alerts, setAlerts] = useState([
+        { id: 1, type: 'info', msg: 'System Database Synchronized', time: '10 min ago', active: true },
+        { id: 2, type: 'success', msg: 'Smooth braking pattern recognized. Efficiency optimized.', time: '23 min ago', active: true }
+      ]);
+
+      // Chat Messages (Co-Pilot Guide Assistant)
+      const [chatMessages, setChatMessages] = useState([
+        {
+          sender: 'ai',
+          text: "Hello. I am your PulseDrive Co-Pilot. I monitor powertrain, cooling, and battery status. Ask me anything about your Hyundai Creta EV's metrics or diagnostic logs.",
+          time: '20:01'
+        }
+      ]);
+
+      // Anomaly Progression Tick (Story Mode)
+      useEffect(() => {
+        if (!isSimRunning) return;
+
+        const interval = setInterval(() => {
+          setSimTime(prev => prev + 1);
+
+          setTelemetry(prev => {
+            let next = { ...prev };
+            
+            const fluctuation = (Math.random() - 0.5) * 1.5;
+            next.speed = Math.max(0, Math.min(180, Math.round(next.speed + (Math.random() - 0.5) * 4)));
+            next.rpm = Math.max(800, Math.min(6500, Math.round(next.rpm + (Math.random() - 0.5) * 200)));
+            next.motorEfficiency = Math.max(70, Math.min(100, Math.round(96 - (next.engineTemp > 100 ? (next.engineTemp - 100)*0.5 : 0) + (Math.random()-0.5))));
+
+            if (simMode === 'normal') {
+              next.engineTemp = Math.round(85 + Math.sin(simTime / 5) * 2);
+              next.coolantLevel = Math.max(90, Math.round(next.coolantLevel + (Math.random() - 0.5) * 0.2));
+              next.coolantTemp = Math.round(80 + Math.sin(simTime / 5) * 1.5);
+              next.oilPressure = Math.round(44 + Math.sin(simTime / 8) * 1);
+              next.healthScore = 96;
+              next.riskScore = 8;
+              next.remainingLife = 145;
+              next.repairCost = 3200;
+            } 
+            else if (simMode === 'warning') {
+              const progressRatio = Math.min(1, (simTime % 60) / 25);
+              next.coolantLevel = Math.max(55, Math.round(94 - progressRatio * 35));
+              next.engineTemp = Math.round(86 + progressRatio * 16 + fluctuation);
+              next.coolantTemp = Math.round(81 + progressRatio * 14);
+              next.healthScore = Math.round(96 - progressRatio * 10);
+              next.riskScore = Math.round(8 + progressRatio * 38);
+              next.remainingLife = Math.round(145 - progressRatio * 120);
+              next.repairCost = 4200;
+            } 
+            else if (simMode === 'critical') {
+              const progressRatio = Math.min(1, (simTime % 60) / 20);
+              next.coolantLevel = Math.max(8, Math.round(55 - progressRatio * 47));
+              next.engineTemp = Math.round(102 + progressRatio * 18 + fluctuation);
+              next.coolantTemp = Math.round(95 + progressRatio * 15);
+              next.healthScore = Math.round(86 - progressRatio * 34);
+              next.riskScore = Math.round(46 + progressRatio * 49);
+              next.remainingLife = Math.max(0, Math.round(25 - progressRatio * 25));
+              next.repairCost = 28500;
+            }
+
+            return next;
+          });
+        }, 1000);
+
+        return () => clearInterval(interval);
+      }, [simMode, simTime, isSimRunning]);
+
+      // Telemetry logging for charts
+      useEffect(() => {
+        const interval = setInterval(() => {
+          setTelemetryHistory(prev => {
+            const pushData = (arr, val) => {
+              const copy = [...arr];
+              copy.push({ val, time: simTime });
+              if (copy.length > 20) copy.shift();
+              return copy;
+            };
+            return {
+              engineTemp: pushData(prev.engineTemp, telemetry.engineTemp),
+              coolantTemp: pushData(prev.coolantTemp, telemetry.coolantTemp),
+              rpm: pushData(prev.rpm, telemetry.rpm),
+              speed: pushData(prev.speed, telemetry.speed),
+              efficiency: pushData(prev.efficiency, telemetry.motorEfficiency)
+            };
+          });
+        }, 2000);
+
+        return () => clearInterval(interval);
+      }, [telemetry, simTime]);
+
+      // Notification Generator depending on Simulator Phase
+      useEffect(() => {
+        if (simMode === 'warning') {
+          if (!alerts.some(a => a.id === 100)) {
+            const newAlert = {
+              id: 100,
+              type: 'warning',
+              msg: 'Coolant fluid level dropping. Radiator efficiency degraded.',
+              time: 'Just now',
+              active: true
+            };
+            setAlerts(prev => [newAlert, ...prev]);
+            
+            setChatMessages(prev => [
+              ...prev,
+              {
+                sender: 'ai',
+                text: "⚠️ WARNING: A coolant system deviation is registered. The coolant fluid level has decreased to 55% with a gradual temperature increase (+0.45°C/min). Projected cooling margin warning in 18 km. Recommendation: Inspect the reservoir for leaks at your earliest convenience.",
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              }
+            ]);
+          }
+        } else if (simMode === 'critical') {
+          if (!alerts.some(a => a.id === 200)) {
+            const newAlert = {
+              id: 200,
+              type: 'critical',
+              msg: 'Engine Temperature high: Exceeds 115°C limit.',
+              time: 'Just now',
+              active: true
+            };
+            setAlerts(prev => [newAlert, ...prev]);
+            
+            setChatMessages(prev => [
+              ...prev,
+              {
+                sender: 'ai',
+                text: "🚨 CRITICAL FAULT: Engine core temperature is 118°C. Coolant level is at a critical 8%. Continued operation runs the risk of physical block deformation. Please pull over safely within 3 km. A service location has been flagged 2.4 km away.",
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              }
+            ]);
+          }
+        } else if (simMode === 'normal') {
+          setAlerts(prev => prev.filter(a => a.id !== 100 && a.id !== 200));
+        }
+      }, [simMode]);
+
+      // Assistant respond engine
+      const sendChatMessage = (text) => {
+        const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const userMsg = { sender: 'user', text, time: timestamp };
+        setChatMessages(prev => [...prev, userMsg]);
+
+        setTimeout(() => {
+          let aiText = "";
+          const lowerText = text.toLowerCase();
+          
+          if (lowerText.includes('overheating') || lowerText.includes('temperature') || lowerText.includes('coolant')) {
+            if (simMode === 'normal') {
+              aiText = "The cooling circuit is operating within standard thresholds. Coolant loop temperature is 81°C with fluid levels at 94%. No degradation or thermal anomalies are detected.";
+            } else if (simMode === 'warning') {
+              aiText = "Coolant reservoir level has dropped to 55%. Current motor core temperature is elevated at " + telemetry.engineTemp + "°C. A localized pressure leak is suspected. Remaining safe distance before thermal limit is estimated at 18 km.";
+            } else {
+              aiText = "CRITICAL: Current engine temperature is " + telemetry.engineTemp + "°C. Coolant fluid levels are at a critical 8%. Engine speed has been capped. Please pull over safely to prevent engine block damage.";
+            }
+          } 
+          else if (lowerText.includes('drive') || lowerText.includes('50 km') || lowerText.includes('safe')) {
+            if (simMode === 'normal') {
+              aiText = "Yes, you can safely complete your drive. Battery state of charge is " + telemetry.batterySoc + "%, yielding an estimated range of " + Math.round(telemetry.batterySoc * 4.8) + " km. All system parameters are nominal.";
+            } else if (simMode === 'warning') {
+              aiText = "A 50 km drive is not recommended without inspecting the coolant circuit. Motor temperatures are climbing and cooling capacity is currently restricted. Safe range is estimated at 18 km.";
+            } else {
+              aiText = "No. Powertrain temperatures are in the warning zone (" + telemetry.engineTemp + "°C). Please pull over and request assistance. Safe range is limited to under 3.2 km.";
+            }
+          }
+          else if (lowerText.includes('battery') || lowerText.includes('degrading')) {
+            aiText = "The 77.4 kWh battery array reports a State of Health (SoH) of 98%. Cell-balancing telemetry is normal with stable thermal values.";
+          }
+          else if (lowerText.includes('mileage') || lowerText.includes('efficiency')) {
+            aiText = "Current trip efficiency is " + telemetry.motorEfficiency + "%. To maximize your driving range:\n1. Maintain speed under 85 km/h to reduce aerodynamic drag.\n2. Engage regenerative braking to recover kinetic energy.\n3. Verify tire pressure is at 33 PSI.";
+          }
+          else if (lowerText.includes('warning') || lowerText.includes('alert')) {
+            if (simMode === 'normal') {
+              aiText = "All control modules report nominal conditions. No warnings are active.";
+            } else {
+              aiText = "Active telemetry shows high cooling circuit temperatures (" + telemetry.engineTemp + "°C). Root cause: low coolant level. Urgency: high.";
+            }
+          }
+          else {
+            aiText = "Checking vehicle data modules for '" + text + "'. Overall health status is " + telemetry.healthScore + "%. " + (simMode !== 'normal' ? "Please check active cooling warnings." : "All systems are running normally.");
+          }
+
+          setChatMessages(prev => [...prev, {
+            sender: 'ai',
+            text: aiText,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }]);
+        }, 1200);
+      };
+
+      return (
+        <SimulationContext.Provider value={{
+          activeTab, setActiveTab,
+          sidebarCollapsed, setSidebarCollapsed,
+          simMode, setSimMode,
+          isSimRunning, setIsSimRunning,
+          telemetry, telemetryHistory,
+          stats, alerts, setAlerts,
+          chatMessages, sendChatMessage,
+          selectedComponent, setSelectedComponent,
+          simTime
+        }}>
+          {children}
+        </SimulationContext.Provider>
+      );
+    };
+
+    const useSimulation = () => useContext(SimulationContext);
+
+    // --- Canvas Background ---
+    const CanvasBackground = () => {
+      const canvasRef = useRef(null);
+      const { simMode } = useSimulation();
+
+      useEffect(() => {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        let animationFrameId;
+        
+        let width = (canvas.width = window.innerWidth);
+        let height = (canvas.height = window.innerHeight);
+
+        const handleResize = () => {
+          if (canvas) {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+          }
+        };
+        window.addEventListener('resize', handleResize);
+
+        const numParticles = 25;
+        const particles = [];
+        
+        const getColors = () => {
+          if (simMode === 'critical') return { r: 239, g: 68, b: 68 };
+          if (simMode === 'warning') return { r: 245, g: 158, b: 11 };
+          return { r: 0, g: 229, b: 255 };
+        };
+
+        for (let i = 0; i < numParticles; i++) {
+          particles.push({
+            x: Math.random() * width,
+            y: Math.random() * height,
+            vx: (Math.random() - 0.5) * 0.2,
+            vy: (Math.random() - 0.5) * 0.2,
+            r: Math.random() * 1.5 + 0.5
+          });
+        }
+
+        const draw = () => {
+          ctx.clearRect(0, 0, width, height);
+          
+          const colors = getColors();
+          const gradient = ctx.createRadialGradient(width/2, height/2, 10, width/2, height/2, Math.max(width, height));
+          gradient.addColorStop(0, `rgba(${colors.r}, ${colors.g}, ${colors.b}, 0.02)`);
+          gradient.addColorStop(0.6, 'rgba(8, 11, 18, 0.1)');
+          gradient.addColorStop(1, 'rgba(8, 11, 18, 1)');
+          ctx.fillStyle = gradient;
+          ctx.fillRect(0, 0, width, height);
+
+          particles.forEach((p, idx) => {
+            p.x += p.vx;
+            p.y += p.vy;
+
+            if (p.x < 0 || p.x > width) p.vx *= -1;
+            if (p.y < 0 || p.y > height) p.vy *= -1;
+
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(${colors.r}, ${colors.g}, ${colors.b}, 0.2)`;
+            ctx.fill();
+
+            for (let j = idx + 1; j < particles.length; j++) {
+              const p2 = particles[j];
+              const dist = Math.hypot(p.x - p2.x, p.y - p2.y);
+              if (dist < 180) {
+                ctx.beginPath();
+                ctx.moveTo(p.x, p.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.strokeStyle = `rgba(${colors.r}, ${colors.g}, ${colors.b}, ${0.05 * (1 - dist/180)})`;
+                ctx.lineWidth = 0.5;
+                ctx.stroke();
+              }
+            }
+          });
+
+          animationFrameId = requestAnimationFrame(draw);
+        };
+
+        draw();
+
+        return () => {
+          cancelAnimationFrame(animationFrameId);
+          window.removeEventListener('resize', handleResize);
+        };
+      }, [simMode]);
+
+      return <canvas ref={canvasRef} class="absolute top-0 left-0 w-full h-full pointer-events-none z-0" />;
+    };
+
+    // --- Left Sidebar ---
+    const Sidebar = () => {
+      const { activeTab, setActiveTab, sidebarCollapsed, setSidebarCollapsed, simMode } = useSimulation();
+
+      const menuItems = [
+        { id: 'health', label: 'Vehicle Health', icon: 'home' },
+        { id: 'twin', label: 'Digital Twin', icon: 'twin' },
+        { id: 'planner', label: 'Service Planner', icon: 'planner' },
+        { id: 'mechanic', label: 'Co-Pilot Guide', icon: 'mechanic' },
+        { id: 'settings', label: 'Settings', icon: 'settings' }
+      ];
+
+      return (
+        <aside 
+          class={`glass-panel h-[calc(100vh-2rem)] my-4 ml-4 rounded-2xl flex flex-col justify-between transition-all duration-500 ease-in-out z-30 ${
+            sidebarCollapsed ? 'w-20' : 'w-64'
+          }`}
+        >
+          <div class="p-5 flex items-center justify-between border-b border-white/5">
+            <div class="flex items-center gap-3 overflow-hidden">
+              <div class="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-tr from-brandCyan to-blue-600 shadow-glowCyan">
+                <span class="text-white font-black text-xl tracking-tighter">P</span>
+                <div class="absolute -inset-0.5 rounded-xl bg-gradient-to-tr from-brandCyan to-blue-500 blur-sm opacity-50 -z-10"></div>
+              </div>
+              {!sidebarCollapsed && (
+                <div class="flex flex-col">
+                  <span class="text-white font-mono font-bold text-lg tracking-wider">PULSE<span class="text-brandCyan">DRIVE</span></span>
+                  <span class="text-[9px] text-brandCyan tracking-widest font-bold uppercase">System Link Active</span>
+                </div>
+              )}
+            </div>
+            
+            <button 
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              class="hidden md:flex p-1.5 rounded-lg hover:bg-white/5 text-textSecondary hover:text-white transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" class={`w-5 h-5 transition-transform duration-300 ${sidebarCollapsed ? 'rotate-180' : ''}`}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M18.75 19.5l-7.5-7.5 7.5-7.5m-6 15L5.25 12l7.5-7.5" />
+              </svg>
+            </button>
+          </div>
+
+          <nav class="flex-1 px-3 py-6 space-y-2 overflow-y-auto">
+            {menuItems.map(item => {
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  class={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-300 relative group ${
+                    isActive 
+                      ? 'bg-gradient-to-r from-white/10 to-transparent text-white font-semibold' 
+                      : 'text-textSecondary hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  {isActive && (
+                    <div 
+                      class={`absolute left-0 top-3 bottom-3 w-1 rounded-full transition-colors ${
+                        simMode === 'critical' ? 'bg-brandRed shadow-[0_0_8px_#EF4444]' :
+                        simMode === 'warning' ? 'bg-brandAmber shadow-[0_0_8px_#F59E0B]' :
+                        'bg-brandCyan shadow-glowCyan'
+                      }`} 
+                    />
+                  )}
+                  
+                  <div class={`transition-transform duration-300 group-hover:scale-110 ${isActive ? (simMode === 'critical' ? 'text-brandRed' : simMode === 'warning' ? 'text-brandAmber' : 'text-brandCyan') : ''}`}>
+                    <Icon name={item.icon} className="w-5 h-5" />
+                  </div>
+                  
+                  {!sidebarCollapsed && (
+                    <span class="text-sm font-medium tracking-wide whitespace-nowrap">{item.label}</span>
+                  )}
+
+                  {sidebarCollapsed && (
+                    <div class="absolute left-20 bg-brandCard border border-white/10 text-white text-xs py-1.5 px-3 rounded-md opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap shadow-glass">
+                      {item.label}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+
+          <div class="p-4 border-t border-white/5">
+            {!sidebarCollapsed ? (
+              <div class="p-3 rounded-xl bg-white/5 border border-white/5 flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
+                  <Icon name="user" className="w-4 h-4 text-brandCyan" />
+                </div>
+                <div class="flex flex-col overflow-hidden">
+                  <span class="text-xs text-white font-bold font-mono tracking-wide truncate">Creta EV</span>
+                  <span class="text-[10px] text-textSecondary truncate">HYUNDAI-0812</span>
+                </div>
+              </div>
+            ) : (
+              <div class="flex justify-center py-2">
+                <div class="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center hover:bg-white/10 cursor-pointer">
+                  <Icon name="user" className="w-4 h-4 text-textSecondary" />
+                </div>
+              </div>
+            )}
+          </div>
+        </aside>
+      );
+    };
+
+    // --- Top Bar ---
+    const Topbar = () => {
+      const { telemetry, simMode, setSimMode } = useSimulation();
+      const [time, setTime] = useState('');
+
+      useEffect(() => {
+        const updateClock = () => {
+          const now = new Date();
+          setTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+        };
+        updateClock();
+        const interval = setInterval(updateClock, 1000);
+        return () => clearInterval(interval);
+      }, []);
+
+      const getHealthStatus = () => {
+        if (simMode === 'critical') return { text: 'DIAGNOSTIC WARNING', color: 'text-brandRed border-brandRed/30 bg-brandRed/10' };
+        if (simMode === 'warning') return { text: 'ATTENTION REQUIRED', color: 'text-brandAmber border-brandAmber/30 bg-brandAmber/10' };
+        return { text: 'SYSTEMS ONLINE', color: 'text-brandGreen border-brandGreen/30 bg-brandGreen/10' };
+      };
+
+      const healthStatus = getHealthStatus();
+
+      return (
+        <header class="glass-panel mx-4 mt-4 px-6 py-3.5 rounded-2xl flex flex-wrap items-center justify-between gap-4 z-20">
+          <div class="flex items-center gap-4">
+            <div>
+              <h2 class="text-lg font-bold font-mono tracking-wider text-white">Hyundai Creta EV</h2>
+              <p class="text-xs text-textSecondary flex items-center gap-1.5">
+                <span class="relative flex h-2 w-2">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-brandGreen opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-2 w-2 bg-brandGreen"></span>
+                </span>
+                PulseDrive Link Connected
+              </p>
+            </div>
+            
+            <div class={`text-[10px] font-mono font-bold px-2.5 py-1 rounded-full border ${healthStatus.color} uppercase tracking-widest hidden sm:inline-block`}>
+              {healthStatus.text}
+            </div>
+          </div>
+
+          {/* Quick Simulation Controller */}
+          <div class="flex items-center gap-2.5 bg-white/5 border border-white/5 px-3 py-1.5 rounded-xl">
+            <span class="text-[10px] text-textSecondary font-mono font-bold uppercase tracking-wider hidden md:inline">Simulation Controls:</span>
+            
+            <button 
+              onClick={() => setSimMode('normal')}
+              class={`text-[10px] font-bold font-mono py-1 px-2.5 rounded-md transition-all ${
+                simMode === 'normal' 
+                  ? 'bg-brandGreen text-black shadow-glowGreen' 
+                  : 'text-textSecondary hover:text-white hover:bg-white/5'
+              }`}
+            >
+              Normal
+            </button>
+            <button 
+              onClick={() => setSimMode('warning')}
+              class={`text-[10px] font-bold font-mono py-1 px-2.5 rounded-md transition-all ${
+                simMode === 'warning' 
+                  ? 'bg-brandAmber text-black shadow-glowAmber' 
+                  : 'text-textSecondary hover:text-white hover:bg-white/5'
+              }`}
+            >
+              Warning
+            </button>
+            <button 
+              onClick={() => setSimMode('critical')}
+              class={`text-[10px] font-bold font-mono py-1 px-2.5 rounded-md transition-all ${
+                simMode === 'critical' 
+                  ? 'bg-brandRed text-white shadow-glowRed animate-pulse' 
+                  : 'text-textSecondary hover:text-white hover:bg-white/5'
+              }`}
+            >
+              Critical
+            </button>
+          </div>
+
+          <div class="flex items-center gap-6">
+            <div class="flex items-center gap-2 border-r border-white/5 pr-4">
+              <Icon name="battery" className="w-5 h-5 text-brandCyan" />
+              <div class="flex flex-col">
+                <span class="text-xs font-mono font-bold">{telemetry.batterySoc}%</span>
+                <span class="text-[9px] text-textSecondary font-mono">382 km range</span>
+              </div>
+            </div>
+
+            <div class="hidden sm:flex items-center gap-2 border-r border-white/5 pr-4">
+              <Icon name="sun" className="w-5 h-5 text-brandAmber" />
+              <div class="flex flex-col">
+                <span class="text-xs font-semibold">28°C</span>
+                <span class="text-[9px] text-textSecondary uppercase">Clear Sky</span>
+              </div>
+            </div>
+
+            <div class="flex flex-col items-end">
+              <span class="text-sm font-mono font-bold tracking-widest text-brandCyan">{time}</span>
+              <span class="text-[9px] text-textSecondary font-mono uppercase">Sync Active</span>
+            </div>
+          </div>
+        </header>
+      );
+    };
+
+    // --- Emergency Header Banner ---
+    const EmergencyBanner = () => {
+      const { simMode, telemetry } = useSimulation();
+
+      if (simMode !== 'critical') return null;
+
+      return (
+        <div class="mx-4 mt-4 bg-brandRed/20 border border-brandRed/50 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-glowRed animate-pulse-glow z-10">
+          <div class="flex items-center gap-3.5">
+            <div class="w-10 h-10 rounded-xl bg-brandRed flex items-center justify-center animate-bounce">
+              <Icon name="alertOctagon" className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h3 class="text-md font-mono font-black text-white tracking-wide">COOLING CIRCUIT DEVIATION - ENGINE TEMPERATURE HIGH</h3>
+              <p class="text-xs text-red-200 mt-0.5">
+                Coolant circuit level at {telemetry.coolantLevel}%. Safe operation range predicted: <span class="font-mono font-bold text-white">3.2 km</span>.
+              </p>
+            </div>
+          </div>
+          <div class="flex items-center gap-3 w-full md:w-auto">
+            <button 
+              onClick={() => alert("Plotting navigation to nearest authorized service center (2.4 km).")}
+              class="w-full md:w-auto px-5 py-2 rounded-xl bg-white text-brandDark hover:bg-brandRed hover:text-white font-bold text-xs font-mono transition-all flex items-center justify-center gap-2 whitespace-nowrap shadow-lg"
+            >
+              <Icon name="mapPin" className="w-4 h-4" />
+              Navigate to Service Center (2.4 km)
+            </button>
+          </div>
+        </div>
+      );
+    };
+
+    // --- Beautiful Custom React SVG Area Chart Component ---
+    const CustomTelemetryChart = ({ data, color, title, labelY }) => {
+      const margin = { top: 10, right: 10, bottom: 20, left: 35 };
+      const width = 450;
+      const height = 150;
+
+      if (!data || data.length === 0) return null;
+
+      const vals = data.map(d => d.val);
+      const minVal = Math.min(...vals) - 1;
+      const maxVal = Math.max(...vals) + 1;
+      const range = maxVal - minVal;
+
+      const getX = (index) => margin.left + (index / (data.length - 1)) * (width - margin.left - margin.right);
+      const getY = (val) => height - margin.bottom - ((val - minVal) / (range || 1)) * (height - margin.top - margin.bottom);
+
+      const points = data.map((d, i) => `${getX(i)},${getY(d.val)}`).join(' L ');
+      const linePath = `M ${points}`;
+      const areaPath = `${linePath} L ${getX(data.length - 1)},${height - margin.bottom} L ${getX(0)},${height - margin.bottom} Z`;
+
+      return (
+        <div class="glass-panel p-4 rounded-xl border border-white/5 relative overflow-hidden flex-1 min-w-[280px]">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs text-textSecondary uppercase font-mono font-semibold tracking-wider">{title}</span>
+            <span class="text-sm font-mono font-bold" style={{ color }}>
+              {data[data.length - 1]?.val.toFixed(1)}{labelY}
+            </span>
+          </div>
+
+          <div class="relative w-full h-[120px]">
+            <svg viewBox={`0 0 ${width} ${height}`} class="w-full h-full">
+              <defs>
+                <linearGradient id={`gradient-${title}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+                  <stop offset="100%" stopColor={color} stopOpacity="0.0" />
+                </linearGradient>
+              </defs>
+
+              <line x1={margin.left} y1={margin.top} x2={width - margin.right} y2={margin.top} stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+              <line x1={margin.left} y1={(height - margin.top - margin.bottom)/2 + margin.top} x2={width - margin.right} y2={(height - margin.top - margin.bottom)/2 + margin.top} stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+              <line x1={margin.left} y1={height - margin.bottom} x2={width - margin.right} y2={height - margin.bottom} stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+
+              <path d={areaPath} fill={`url(#gradient-${title})`} />
+              <path d={linePath} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" />
+
+              <circle 
+                cx={getX(data.length - 1)} 
+                cy={getY(data[data.length - 1]?.val)} 
+                r="4.5" 
+                fill={color} 
+                className="ping-slow"
+              />
+              <circle 
+                cx={getX(data.length - 1)} 
+                cy={getY(data[data.length - 1]?.val)} 
+                r="2.5" 
+                fill="#ffffff" 
+              />
+            </svg>
+          </div>
+        </div>
+      );
+    };
+
+    // --- HOME PAGE: Vehicle Health Monitor ---
+    const VehicleHealthPage = () => {
+      const { telemetry, telemetryHistory, simMode, alerts } = useSimulation();
+
+      const themeColor = simMode === 'critical' ? '#EF4444' : simMode === 'warning' ? '#F59E0B' : '#00E5FF';
+
+      return (
+        <div class="space-y-6">
+          
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* Hero Health Gauge */}
+            <div class="lg:col-span-1 glass-panel p-6 rounded-2xl flex flex-col items-center justify-center relative overflow-hidden">
+              <div class="absolute inset-0 bg-gradient-to-b from-transparent to-black/30 pointer-events-none"></div>
+              
+              <h3 class="text-xs text-textSecondary uppercase font-mono font-bold tracking-widest mb-6">Overall System Health</h3>
+              
+              <div class="relative w-48 h-48 flex items-center justify-center">
+                <div class="absolute w-36 h-36 rounded-full blur-2xl opacity-15" style={{ backgroundColor: themeColor }}></div>
+                
+                <svg class="w-full h-full transform -rotate-90">
+                  <circle cx="96" cy="96" r="80" stroke="rgba(255,255,255,0.03)" strokeWidth="10" fill="none" />
+                  
+                  <circle 
+                    cx="96" cy="96" r="80" 
+                    stroke={themeColor} strokeWidth="10" fill="none" 
+                    strokeDasharray={2 * Math.PI * 80}
+                    strokeDashoffset={2 * Math.PI * 80 - (telemetry.healthScore / 100) * (2 * Math.PI * 80)}
+                    strokeLinecap="round"
+                    className="transition-all duration-1000 ease-out"
+                  />
+                </svg>
+                
+                <div class="absolute flex flex-col items-center justify-center">
+                  <span class="text-5xl font-mono font-black text-white tracking-tighter transition-all duration-1000">{telemetry.healthScore}%</span>
+                  <span class="text-xs font-bold uppercase tracking-widest mt-1" style={{ color: themeColor }}>
+                    {telemetry.healthScore > 90 ? 'Excellent' : telemetry.healthScore > 70 ? 'Marginal' : 'Inspect'}
+                  </span>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-3 gap-4 mt-6 w-full text-center">
+                <div class="flex flex-col items-center">
+                  <span class="text-[10px] text-textSecondary font-bold">POWERTRAIN</span>
+                  <span class={`text-xs font-mono font-bold ${simMode === 'critical' ? 'text-brandRed' : 'text-brandGreen'}`}>
+                    {simMode === 'critical' ? '58%' : '98%'}
+                  </span>
+                </div>
+                <div class="flex flex-col items-center">
+                  <span class="text-[10px] text-textSecondary font-bold">BATTERY SOH</span>
+                  <span class="text-xs font-mono font-bold text-brandGreen">98%</span>
+                </div>
+                <div class="flex flex-col items-center">
+                  <span class="text-[10px] text-textSecondary font-bold">COOLING</span>
+                  <span class={`text-xs font-mono font-bold ${
+                    simMode === 'critical' ? 'text-brandRed font-black animate-pulse' : 
+                    simMode === 'warning' ? 'text-brandAmber font-bold' : 
+                    'text-brandGreen'
+                  }`}>
+                    {simMode === 'critical' ? '8%' : simMode === 'warning' ? '55%' : '94%'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Health Indicators Cards Grid */}
+            <div class="lg:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-4">
+              
+              <div class="glass-panel p-4 rounded-xl flex flex-col justify-between hover:border-white/10 transition-all group">
+                <div class="flex justify-between items-start">
+                  <span class="text-[10px] font-bold text-textSecondary uppercase tracking-wider font-mono">Engine Temperature</span>
+                  <Icon name="thermometer" className={`w-4 h-4 ${simMode === 'critical' ? 'text-brandRed' : simMode === 'warning' ? 'text-brandAmber' : 'text-brandCyan'}`} />
+                </div>
+                <div class="mt-4">
+                  <span class="text-2xl font-mono font-bold text-white">{telemetry.engineTemp}°C</span>
+                  <span class="text-[10px] text-brandGreen font-bold flex items-center gap-1 mt-1 font-mono">
+                    <span class={`w-1.5 h-1.5 rounded-full ${simMode === 'critical' ? 'bg-brandRed' : simMode === 'warning' ? 'bg-brandAmber' : 'bg-brandGreen'}`}></span>
+                    {simMode === 'critical' ? 'High Limit' : simMode === 'warning' ? 'Elevated' : 'Optimal'}
+                  </span>
+                </div>
+              </div>
+
+              <div class="glass-panel p-4 rounded-xl flex flex-col justify-between hover:border-white/10 transition-all">
+                <div class="flex justify-between items-start">
+                  <span class="text-[10px] font-bold text-textSecondary uppercase tracking-wider font-mono">Battery Temperature</span>
+                  <Icon name="zap" className="w-4 h-4 text-brandGreen" />
+                </div>
+                <div class="mt-4">
+                  <span class="text-2xl font-mono font-bold text-white">{simMode === 'critical' ? '38' : '32'}°C</span>
+                  <span class="text-[10px] text-brandGreen font-bold flex items-center gap-1 mt-1 font-mono">
+                    <span class="w-1.5 h-1.5 rounded-full bg-brandGreen"></span>
+                    Nominal
+                  </span>
+                </div>
+              </div>
+
+              <div class="glass-panel p-4 rounded-xl flex flex-col justify-between hover:border-white/10 transition-all">
+                <div class="flex justify-between items-start">
+                  <span class="text-[10px] font-bold text-textSecondary uppercase tracking-wider font-mono">Predictive Failure Risk</span>
+                  <Icon name="shield" className={`w-4 h-4 ${simMode === 'critical' ? 'text-brandRed' : simMode === 'warning' ? 'text-brandAmber' : 'text-brandCyan'}`} />
+                </div>
+                <div class="mt-4">
+                  <span class="text-2xl font-mono font-bold text-white">{telemetry.riskScore}% Risk</span>
+                  <span class="text-[10px] text-textSecondary font-semibold flex items-center gap-1 mt-1">
+                    {simMode === 'critical' ? 'Active Fault' : simMode === 'warning' ? 'Maintenance Loop' : 'Stable'}
+                  </span>
+                </div>
+              </div>
+
+              <div class="glass-panel p-4 rounded-xl flex flex-col justify-between hover:border-white/10 transition-all">
+                <div class="flex justify-between items-start">
+                  <span class="text-[10px] font-bold text-textSecondary uppercase tracking-wider font-mono">Remaining Useful Life</span>
+                  <Icon name="planner" className="w-4 h-4 text-textSecondary" />
+                </div>
+                <div class="mt-4">
+                  <span class="text-2xl font-mono font-bold text-white">{telemetry.remainingLife} Days</span>
+                  <span class="text-[10px] text-textSecondary font-semibold mt-1 block">Expected component limit</span>
+                </div>
+              </div>
+
+              <div class="glass-panel p-4 rounded-xl flex flex-col justify-between hover:border-white/10 transition-all">
+                <div class="flex justify-between items-start">
+                  <span class="text-[10px] font-bold text-textSecondary uppercase tracking-wider font-mono">Est. Servicing Cost</span>
+                  <Icon name="settings" className="w-4 h-4 text-textSecondary" />
+                </div>
+                <div class="mt-4">
+                  <span class="text-2xl font-mono font-bold text-white">₹{telemetry.repairCost}</span>
+                  <span class="text-[10px] text-textSecondary font-semibold mt-1 block">Authorized Rate</span>
+                </div>
+              </div>
+
+              <div class="glass-panel p-4 rounded-xl flex flex-col justify-between hover:border-white/10 transition-all">
+                <div class="flex justify-between items-start">
+                  <span class="text-[10px] font-bold text-textSecondary uppercase tracking-wider font-mono">Coolant Level</span>
+                  <Icon name="activity" className={`w-4 h-4 ${simMode === 'critical' ? 'text-brandRed animate-pulse' : simMode === 'warning' ? 'text-brandAmber' : 'text-brandGreen'}`} />
+                </div>
+                <div class="mt-4">
+                  <span class="text-2xl font-mono font-bold text-white">{telemetry.coolantLevel}%</span>
+                  <span class="text-[10px] text-textSecondary font-semibold mt-1 block">Loop fluid margin</span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          {/* Live Sensor Telemetry Charts */}
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <CustomTelemetryChart 
+              data={telemetryHistory.engineTemp} 
+              color={simMode === 'critical' ? '#EF4444' : simMode === 'warning' ? '#F59E0B' : '#00E5FF'} 
+              title="Powertrain Core Temp" 
+              labelY="°C" 
+            />
+            <CustomTelemetryChart 
+              data={telemetryHistory.coolantTemp} 
+              color={simMode === 'critical' ? '#EF4444' : simMode === 'warning' ? '#F59E0B' : '#3B82F6'} 
+              title="Cooling Loop Temp" 
+              labelY="°C" 
+            />
+            <CustomTelemetryChart 
+              data={telemetryHistory.efficiency} 
+              color="#22C55E" 
+              title="Powertrain Efficiency" 
+              labelY="%" 
+            />
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* On-Board Diagnostics Logs */}
+            <div class="lg:col-span-2 glass-panel p-6 rounded-2xl relative overflow-hidden flex flex-col justify-between">
+              <div>
+                <div class="flex items-center gap-2.5 mb-4">
+                  <div class="w-8 h-8 rounded-lg bg-brandCyan/10 border border-brandCyan/20 flex items-center justify-center">
+                    <Icon name="mechanic" className="w-4.5 h-4.5 text-brandCyan" />
+                  </div>
+                  <div>
+                    <h3 class="text-sm font-bold tracking-wide text-white">On-Board Diagnostics (OBD-III)</h3>
+                    <p class="text-[10px] text-textSecondary font-mono">Firmware: CretaOS-v4 • Realtime Telemetry Monitoring</p>
+                  </div>
+                </div>
+
+                <div class="space-y-4 my-2 text-sm text-gray-200">
+                  {simMode === 'normal' && (
+                    <div class="p-4 rounded-xl bg-brandGreen/5 border border-brandGreen/10 space-y-2">
+                      <p class="font-semibold text-brandGreen flex items-center gap-1.5">
+                        <Icon name="checkCircle" className="w-4 h-4" />
+                        Powertrain & Thermal Loops Nominal
+                      </p>
+                      <p class="text-xs text-textSecondary">
+                        On-board diagnostics indicate physical parameters are within standard manufacturing limits. Battery cell temperature, fluid viscosity, and tire load profiles are normal. Scheduled service item: <strong>Inspect Coolant Level (32 days)</strong>.
+                      </p>
+                    </div>
+                  )}
+
+                  {simMode === 'warning' && (
+                    <div class="p-4 rounded-xl bg-brandAmber/5 border border-brandAmber/15 space-y-3">
+                      <div class="flex items-center justify-between">
+                        <span class="font-bold text-brandAmber flex items-center gap-1.5">
+                          <Icon name="alertTriangle" className="w-4 h-4 animate-bounce" />
+                          Cooling Capacity Impairment Registered
+                        </span>
+                        <span class="text-[9px] font-mono bg-brandAmber/10 text-brandAmber px-2 py-0.5 rounded border border-brandAmber/20">OBD-II DIAG CODE: P0128</span>
+                      </div>
+                      <p class="text-xs text-gray-300">
+                        Radiator thermal gradient mismatch registered. Coolant capacity dropping, indicating a potential radiator hose pressure leak.
+                      </p>
+                      <div class="grid grid-cols-2 gap-3 text-xs pt-1 border-t border-brandAmber/10 font-mono">
+                        <div><span class="text-textSecondary">Root Cause:</span> Fluid Seal Degradation</div>
+                        <div><span class="text-textSecondary">Action Limit:</span> 18 km</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {simMode === 'critical' && (
+                    <div class="p-4 rounded-xl bg-brandRed/5 border border-brandRed/15 space-y-3">
+                      <div class="flex items-center justify-between">
+                        <span class="font-bold text-brandRed flex items-center gap-1.5">
+                          <Icon name="alertCircle" className="w-4 h-4 animate-ping" />
+                          CRITICAL TEMP INTRUSION
+                        </span>
+                        <span class="text-[9px] font-mono bg-brandRed/10 text-brandRed px-2 py-0.5 rounded border border-brandRed/20">OBD-II DIAG CODE: P0217</span>
+                      </div>
+                      <p class="text-xs text-red-200">
+                        Coolant loop temperature is 110°C, inducing active motor thermal stress. Engine output has been limited to prevent core damage.
+                      </p>
+                      <div class="grid grid-cols-2 gap-3 text-xs pt-1 border-t border-brandRed/10 font-mono">
+                        <div><span class="text-textSecondary">Action Required:</span> Safety Stop</div>
+                        <div><span class="text-textSecondary">Critical Fault:</span> Overheating Warning</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div class="flex gap-2.5 mt-4 pt-3 border-t border-white/5">
+                <span class="text-[10px] text-textSecondary uppercase tracking-widest font-mono py-1">OBD Diagnostics System</span>
+              </div>
+            </div>
+
+            {/* Active Alerts Panel */}
+            <div class="glass-panel p-6 rounded-2xl flex flex-col">
+              <div class="flex justify-between items-center mb-4">
+                <h3 class="text-sm font-bold text-white tracking-wide">Live Diagnostics Stream</h3>
+                <span class="text-[10px] font-mono text-brandCyan bg-brandCyan/10 px-2 py-0.5 rounded-full">Active</span>
+              </div>
+              
+              <div class="space-y-3 flex-1 overflow-y-auto max-h-[170px] pr-1">
+                {alerts.map(a => (
+                  <div key={a.id} class="p-3 rounded-xl bg-white/5 border border-white/5 flex gap-3 items-start animate-float">
+                    <div class={`w-2 h-2 rounded-full mt-1.5 ${
+                      a.type === 'critical' ? 'bg-brandRed' :
+                      a.type === 'warning' ? 'bg-brandAmber' :
+                      a.type === 'success' ? 'bg-brandGreen' : 'bg-brandCyan'
+                    }`} />
+                    <div class="flex-1">
+                      <p class="text-xs text-white leading-tight font-medium">{a.msg}</p>
+                      <span class="text-[9px] text-textSecondary font-mono block mt-1">{a.time}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Driving Behaviour Analysis & Sustainability Section */}
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            
+            {/* Driving Behaviour Panel */}
+            <div class="glass-panel p-6 rounded-2xl space-y-4">
+              <div class="flex items-center justify-between">
+                <span class="text-xs text-textSecondary uppercase font-mono font-bold tracking-wider">Driver Efficiency Profile</span>
+                <Icon name="award" className="w-5 h-5 text-brandCyan" />
+              </div>
+              
+              <div class="flex items-end justify-between">
+                <div>
+                  <span class="text-4xl font-mono font-black text-white">92</span>
+                  <span class="text-xs text-textSecondary ml-1">/100 Score</span>
+                </div>
+                <span class="text-xs font-mono font-semibold text-brandGreen">Efficient Smoothness</span>
+              </div>
+
+              <div class="space-y-2.5 pt-2">
+                <div>
+                  <div class="flex justify-between text-[10px] text-textSecondary font-mono mb-1">
+                    <span>ACCELERATION PROFILE</span>
+                    <span class="text-white">94%</span>
+                  </div>
+                  <div class="h-1 bg-white/5 rounded-full overflow-hidden">
+                    <div class="h-full bg-brandGreen rounded-full" style={{ width: '94%' }} />
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-[10px] text-textSecondary font-mono mb-1">
+                    <span>CORNERING FORCES</span>
+                    <span class="text-white">88%</span>
+                  </div>
+                  <div class="h-1 bg-white/5 rounded-full overflow-hidden">
+                    <div class="h-full bg-brandCyan rounded-full" style={{ width: '88%' }} />
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-[10px] text-textSecondary font-mono mb-1">
+                    <span>DECELERATION PATTERNS</span>
+                    <span class="text-white">91%</span>
+                  </div>
+                  <div class="h-1 bg-white/5 rounded-full overflow-hidden">
+                    <div class="h-full bg-brandGreen rounded-full" style={{ width: '91%' }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Journey Readiness Check */}
+            <div class="glass-panel p-6 rounded-2xl space-y-4">
+              <div class="flex items-center justify-between">
+                <span class="text-xs text-textSecondary uppercase font-mono font-bold tracking-wider">Journey Readiness</span>
+                <Icon name="shield" className="w-5 h-5 text-brandGreen" />
+              </div>
+
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-brandGreen/10 flex items-center justify-center text-brandGreen">
+                  <span class="text-xl font-mono font-black">{simMode === 'critical' ? '32%' : '98%'}</span>
+                </div>
+                <div>
+                  <h4 class="text-xs font-bold">{simMode === 'critical' ? 'Service Suggested' : 'Optimized for Travel'}</h4>
+                  <p class="text-[10px] text-textSecondary mt-0.5">Checked across onboard systems</p>
+                </div>
+              </div>
+
+              <div class="space-y-2 text-xs pt-1 font-mono">
+                <div class="flex items-center justify-between py-1 border-b border-white/5">
+                  <span class="text-textSecondary">Weather Impact</span>
+                  <span class="text-white font-semibold">0% Power Loss</span>
+                </div>
+                <div class="flex items-center justify-between py-1 border-b border-white/5">
+                  <span class="text-textSecondary">Battery Charge</span>
+                  <span class="text-brandGreen font-bold">Passed</span>
+                </div>
+                <div class="flex items-center justify-between py-1">
+                  <span class="text-textSecondary">Cooling Margin</span>
+                  <span class={`font-bold ${simMode === 'critical' ? 'text-brandRed' : simMode === 'warning' ? 'text-brandAmber' : 'text-brandGreen'}`}>
+                    {simMode === 'critical' ? 'Failed (8%)' : simMode === 'warning' ? 'Elevated (55%)' : 'Optimal'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Sustainability Metrics */}
+            <div class="glass-panel p-6 rounded-2xl space-y-4">
+              <div class="flex items-center justify-between">
+                <span class="text-xs text-textSecondary uppercase font-mono font-bold tracking-wider">Sustainability Index</span>
+                <Icon name="cloud" className="w-5 h-5 text-brandGreen" />
+              </div>
+
+              <div class="flex items-end justify-between">
+                <div>
+                  <span class="text-4xl font-mono font-black text-white">18.4</span>
+                  <span class="text-xs text-textSecondary ml-1">kg CO₂</span>
+                </div>
+                <span class="text-xs font-mono font-bold text-brandGreen">Net Saved</span>
+              </div>
+
+              <div class="p-3.5 rounded-xl bg-white/5 border border-white/5 text-[11px] text-textSecondary leading-normal">
+                Proactive scheduling of electric motor cooling maintenance has prevented friction losses. Your driver efficiency score is in the top 5% of our EV Fleet.
+              </div>
+            </div>
+
+          </div>
+        </div>
+      );
+    };
+
+    // --- DIGITAL TWIN PAGE (HYUNDAI CRETA EV SPECIFIC MODEL) ---
+    const DigitalTwinPage = () => {
+      const { telemetry, simMode, selectedComponent, setSelectedComponent } = useSimulation();
+
+      const components = {
+        engine: {
+          name: 'Front Powertrain Induction Motor',
+          health: simMode === 'critical' ? 58 : 98,
+          temp: simMode === 'critical' ? '118°C' : simMode === 'warning' ? '102°C' : '86°C',
+          cost: simMode === 'critical' ? '₹28,500' : '₹4,200',
+          life: simMode === 'critical' ? '0 Days' : simMode === 'warning' ? '25 Days' : '145 Days',
+          desc: 'Primary electric induction drive unit supplying power to the front axle and coordinating the active brake regeneration curves.',
+          status: simMode === 'critical' ? 'critical' : 'healthy'
+        },
+        battery: {
+          name: 'High Voltage Lithium-Ion Battery Array',
+          health: 98,
+          temp: '32°C',
+          cost: '₹0',
+          life: '1450 Days',
+          desc: '77.4 kWh modular cell array integrated under the passenger cabin floor for optimal weight distribution.',
+          status: 'healthy'
+        },
+        cooling: {
+          name: 'Radiator Liquid Coolant Reservoir & Hose',
+          health: simMode === 'critical' ? 8 : simMode === 'warning' ? 55 : 94,
+          temp: simMode === 'critical' ? '110°C' : simMode === 'warning' ? '95°C' : '81°C',
+          cost: simMode === 'critical' ? '₹28,500 (Pump & Seal)' : '₹4,200 (Fluid Flush)',
+          life: simMode === 'critical' ? '0 Days' : simMode === 'warning' ? '25 Days' : '120 Days',
+          desc: 'Thermoregulatory liquid circuit running between the radiator, motor casing, and cabin climate coils.',
+          status: simMode === 'critical' ? 'critical' : simMode === 'warning' ? 'warning' : 'healthy'
+        },
+        brakes: {
+          name: 'Braking Disc & Pad Telemetry',
+          health: 91,
+          temp: '45°C',
+          cost: '₹7,200',
+          life: '240 Days',
+          desc: 'Friction pads operating alongside regenerative deceleration modules on front and rear axles.',
+          status: 'healthy'
+        },
+        tires: {
+          name: 'Tire Pressure Monitoring System (TPMS)',
+          health: 96,
+          temp: '38°C',
+          cost: '₹14,000 (Set)',
+          life: '480 Days',
+          desc: 'Realtime tire load and pressure indices (FL: 33 PSI, FR: 33 PSI, RL: 34 PSI, RR: 34 PSI).',
+          status: 'healthy'
+        }
+      };
+
+      const selected = selectedComponent ? components[selectedComponent] : null;
+
+      const getGlowFilter = (comp) => {
+        if (comp === 'cooling') {
+          if (simMode === 'critical') return 'url(#glow-red)';
+          if (simMode === 'warning') return 'url(#glow-amber)';
+          return 'url(#glow-cyan)';
+        }
+        if (comp === 'engine') {
+          if (simMode === 'critical') return 'url(#glow-red)';
+          return 'url(#glow-cyan)';
+        }
+        return 'url(#glow-cyan)';
+      };
+
+      const getComponentFill = (comp, baseClass) => {
+        if (comp === 'cooling') {
+          if (simMode === 'critical') return 'fill-red-500/80 stroke-red-400 stroke-2';
+          if (simMode === 'warning') return 'fill-amber-500/80 stroke-amber-400 stroke-2';
+          return 'fill-cyan-500/60 stroke-cyan-400 stroke-2';
+        }
+        if (comp === 'engine') {
+          if (simMode === 'critical') return 'fill-red-500/80 stroke-red-400 stroke-2';
+          return 'fill-cyan-500/60 stroke-cyan-400 stroke-2';
+        }
+        return baseClass;
+      };
+
+      return (
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* Wireframe SUV Isometric Visualizer */}
+          <div class="lg:col-span-2 glass-panel p-6 rounded-2xl flex flex-col justify-between items-center min-h-[450px] relative overflow-hidden">
+            
+            <div class="w-full flex items-center justify-between mb-4">
+              <div>
+                <h3 class="text-sm font-bold tracking-wide text-white uppercase font-mono">Creta EV Digital Twin Status</h3>
+                <p class="text-[10px] text-textSecondary font-mono">Interactive Hyundai Creta EV chassis and powertrain layout</p>
+              </div>
+              
+              <div class="flex gap-2">
+                <span class="text-[9px] bg-brandCyan/10 text-brandCyan border border-brandCyan/20 px-2 py-0.5 rounded font-mono">3D Creta EV Mesh</span>
+              </div>
+            </div>
+
+            <div class="relative w-full max-w-[580px] aspect-video flex items-center justify-center py-4">
+              
+              {simMode !== 'normal' && (
+                <div class={`absolute top-[40%] left-[30%] w-48 h-48 rounded-full border border-dashed animate-ping duration-1000 ${
+                  simMode === 'critical' ? 'border-brandRed/30' : 'border-brandAmber/30'
+                }`}></div>
+              )}
+
+              <svg viewBox="0 0 850 480" class="w-full h-full drop-shadow-2xl">
+                <defs>
+                  {/* Premium Matte Titan Grey Paint Gradients */}
+                  <linearGradient id="bodyPaintGrad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor="#8A95A5" />
+                    <stop offset="35%" stopColor="#4A5468" />
+                    <stop offset="70%" stopColor="#2D3646" />
+                    <stop offset="100%" stopColor="#1A202C" />
+                  </linearGradient>
+
+                  {/* Contrast Gloss Black Roof Paint */}
+                  <linearGradient id="blackRoofGrad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor="#1E2330" />
+                    <stop offset="100%" stopColor="#080B10" />
+                  </linearGradient>
+
+                  <linearGradient id="glassGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="rgba(0, 229, 255, 0.35)" />
+                    <stop offset="100%" stopColor="rgba(21, 28, 44, 0.75)" />
+                  </linearGradient>
+
+                  <linearGradient id="groundShadowGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="rgba(0,0,0,0.7)" />
+                    <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+                  </linearGradient>
+
+                  {/* Aero wheel gradients */}
+                  <linearGradient id="aeroWheelGrad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor="#2E384D" />
+                    <stop offset="50%" stopColor="#1E2430" />
+                    <stop offset="100%" stopColor="#0D1117" />
+                  </linearGradient>
+                  
+                  <filter id="glow-cyan" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="5" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                  </filter>
+                  <filter id="glow-red" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="8" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                  </filter>
+                  <filter id="glow-amber" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="6" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                  </filter>
+                </defs>
+
+                {/* Grid Floor */}
+                <g stroke="rgba(255,255,255,0.02)" strokeWidth="1">
+                  {Array.from({length: 15}).map((_, i) => (
+                    <line key={i} x1={30 + i * 55} y1="40" x2={30 + i * 55} y2="440" />
+                  ))}
+                  {Array.from({length: 9}).map((_, i) => (
+                    <line key={i} x1="30" y1={40 + i * 50} x2="820" y2={40 + i * 50} />
+                  ))}
+                </g>
+
+                {/* Ground Shadow */}
+                <ellipse cx="440" cy="385" rx="360" ry="35" fill="url(#groundShadowGrad)" />
+
+                {/* --- HYUNDAI CRETA EV DETAILED ILLUSTRATION --- */}
+                
+                {/* 1. Rear bumper structure */}
+                <path d="M 660,250 L 745,290 L 735,348 L 630,348 Z" fill="url(#bodyPaintGrad)" stroke="rgba(255,255,255,0.1)" />
+                {/* Creta EV Connecting rear lightbar piece */}
+                <path d="M 680,268 L 740,296" stroke="#EF4444" strokeWidth="2" opacity="0.8" fill="none" />
+
+                {/* 2. Skateboard Bottom Trim & Wheel Cladding (Plastic bumpers) */}
+                <path d="M 230,350 L 640,350 L 665,338 L 205,338 Z" fill="#111622" stroke="rgba(255,255,255,0.05)" />
+
+                {/* 3. Main Side Doors Panel with signature Creta shoulder crease lines */}
+                <path d="M 280,260 L 660,250 L 665,338 L 290,348 Z" fill="url(#bodyPaintGrad)" />
+                <path d="M 285,280 L 655,270" stroke="rgba(255,255,255,0.15)" strokeWidth="1" fill="none" />
+                <path d="M 292,325 L 650,312" stroke="rgba(0,0,0,0.3)" strokeWidth="1.5" fill="none" />
+
+                {/* 4. Front Fender & Closed Wheel Cladding */}
+                <path d="M 170,300 L 280,260 L 290,348 L 210,348 Z" fill="url(#bodyPaintGrad)" />
+
+                {/* 5. Hyundai Signature Closed Front EV Grille & Charging Port Lid */}
+                <path d="M 100,285 L 170,255 L 170,320 L 100,310 Z" fill="#202A3D" stroke="rgba(255,255,255,0.08)" />
+                {/* Charging Port Door outline (Creta EV distinctive off-center location) */}
+                <rect x="135" y="278" width="16" height="14" rx="2" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="1" transform="skewY(-16)" />
+                <path d="M 140,283 L 148,278" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" />
+
+                {/* 6. Horizon LED Connecting lightbar (Running edge-to-edge on hood line) */}
+                <path d="M 98,286 L 168,256" stroke="#CBE6FF" strokeWidth="2.5" fill="none" filter="url(#glow-cyan)" />
+                {/* Hyundai split headlamp cluster inside bumper bumper */}
+                <path d="M 104,295 L 114,291 L 114,306 L 104,303 Z" fill="#ffffff" opacity="0.95" filter="url(#glow-cyan)" />
+
+                {/* 7. Hood Panel */}
+                <path d="M 170,255 L 285,195 L 340,245 L 170,285 Z" fill="url(#bodyPaintGrad)" stroke="rgba(255,255,255,0.12)" />
+
+                {/* 8. Windshield with black border highlights */}
+                <path d="M 285,195 L 375,120 L 480,120 L 340,245 Z" fill="url(#glassGrad)" stroke="rgba(0, 229, 255, 0.3)" />
+                <path d="M 330,195 L 400,125" stroke="rgba(255,255,255,0.25)" strokeWidth="7" fill="none" />
+                
+                {/* 9. Contrast Gloss Black Roof (Creates the signature floating roof effect) */}
+                <path d="M 375,120 L 590,120 L 640,205 L 480,120 Z" fill="url(#blackRoofGrad)" />
+                {/* Distinctive Silver C-Pillar Garnish Trim strip (Runs above window frame) */}
+                <path d="M 380,119 L 592,119 L 642,205 L 632,205 L 588,124 L 380,124 Z" fill="#CBD5E1" opacity="0.9" />
+
+                {/* 10. Cabin Side Windows */}
+                <path d="M 352,235 L 485,125 L 585,125 L 626,202 Q 520,215 352,235 Z" fill="url(#glassGrad)" stroke="rgba(0, 229, 255, 0.15)" />
+                <line x1="480" y1="125" x2="485" y2="220" stroke="#0B0F19" strokeWidth="4.5" />
+                <line x1="575" y1="125" x2="578" y2="210" stroke="#0B0F19" strokeWidth="4.5" />
+
+                {/* Wheel arches */}
+                <path d="M 185,340 A 50,50 0 0,1 285,340" fill="none" stroke="#1E293B" strokeWidth="8" />
+                <path d="M 585,340 A 50,50 0 0,1 685,340" fill="none" stroke="#1E293B" strokeWidth="8" />
+
+                {/* 11. Creta Aero-optimized EV Alloy Wheels (Closed geometric design) */}
+                {/* Front Wheel */}
+                <g>
+                  <ellipse cx="235" cy="340" rx="42" ry="24" fill="#111622" stroke="#1C2436" strokeWidth="2.5" />
+                  {/* Geometric Aero-insert disk */}
+                  <ellipse cx="235" cy="340" rx="30" ry="17" fill="url(#aeroWheelGrad)" stroke="#64748B" strokeWidth="1.5" />
+                  {/* Diamond cut accents */}
+                  <path d="M 220,335 L 250,345" stroke="#CBD5E1" strokeWidth="2" />
+                  <path d="M 235,328 L 235,352" stroke="#CBD5E1" strokeWidth="2" />
+                  <ellipse cx="235" cy="340" rx="9" ry="5" fill="#0B0F19" />
+                </g>
+
+                {/* Rear Wheel */}
+                <g>
+                  <ellipse cx="635" cy="340" rx="42" ry="24" fill="#111622" stroke="#1C2436" strokeWidth="2.5" />
+                  <ellipse cx="635" cy="340" rx="30" ry="17" fill="url(#aeroWheelGrad)" stroke="#64748B" strokeWidth="1.5" />
+                  <path d="M 620,335 L 650,345" stroke="#CBD5E1" strokeWidth="2" />
+                  <path d="M 635,328 L 635,352" stroke="#CBD5E1" strokeWidth="2" />
+                  <ellipse cx="635" cy="340" rx="9" ry="5" fill="#0B0F19" />
+                </g>
+
+                {/* --- HARDWARE LAYOUT OVERLAYS --- */}
+                {/* 1. Drive Motor (Powertrain) - Under Hood */}
+                <g onClick={() => setSelectedComponent('engine')} class="cursor-pointer">
+                  <path 
+                    d="M 195,255 L 260,225 L 295,255 L 230,285 Z" 
+                    class={`transition-all duration-300 ${
+                      selectedComponent === 'engine' ? 'opacity-85' : 'opacity-20 hover:opacity-55'
+                    } ${getComponentFill('engine', 'fill-brandCyan')}`}
+                    filter={getGlowFilter('engine')}
+                  />
+                  <path d="M 230,285 L 295,255 L 295,275 L 230,305 Z" class={`transition-all duration-300 ${selectedComponent === 'engine' ? 'opacity-70' : 'opacity-10'} fill-blue-600/40`} />
+                  <text x="245" y="260" fill="white" fontSize="9" fontWeight="bold" fontFamily="monospace" textAnchor="middle" pointerEvents="none">MOTOR</text>
+                </g>
+
+                {/* 2. Battery pack (Under-floor Skateboard) */}
+                <g onClick={() => setSelectedComponent('battery')} class="cursor-pointer">
+                  <path 
+                    d="M 310,295 L 590,285 L 565,315 L 325,325 Z" 
+                    class={`transition-all duration-300 ${
+                      selectedComponent === 'battery' ? 'opacity-75' : 'opacity-15 hover:opacity-40'
+                    } fill-brandGreen`}
+                    filter="url(#glow-cyan)"
+                  />
+                  <path d="M 325,325 L 565,315 L 565,330 L 325,340 Z" class={`transition-all duration-300 ${selectedComponent === 'battery' ? 'opacity-60' : 'opacity-10'} fill-emerald-600/30`} />
+                  <text x="445" y="312" fill="white" fontSize="9" fontWeight="bold" fontFamily="monospace" textAnchor="middle" pointerEvents="none">BATTERY CELL MATRIX</text>
+                </g>
+
+                {/* 3. Cooling System (Radiator and front flow loop) */}
+                <g onClick={() => setSelectedComponent('cooling')} class="cursor-pointer">
+                  <path 
+                    d="M 130,280 L 165,265 L 165,310 L 130,320 Z" 
+                    class={`transition-all duration-300 ${
+                      selectedComponent === 'cooling' ? 'opacity-90 animate-pulse-glow' : 'opacity-20 hover:opacity-55'
+                    } ${getComponentFill('cooling', 'fill-brandCyan')}`}
+                    filter={getGlowFilter('cooling')}
+                  />
+                  <path d="M 165,275 Q 185,260 210,265" fill="none" stroke={simMode === 'critical' ? '#EF4444' : simMode === 'warning' ? '#F59E0B' : '#00E5FF'} strokeWidth="2.5" opacity={selectedComponent === 'cooling' ? 0.9 : 0.2} />
+                  <text x="148" y="295" fill="white" fontSize="8" fontWeight="bold" fontFamily="monospace" textAnchor="middle" pointerEvents="none">COOLING</text>
+                </g>
+
+                {/* 4. Tires (TPMS sensor indicators) */}
+                <g onClick={() => setSelectedComponent('tires')} class="cursor-pointer">
+                  <ellipse cx="235" cy="340" rx="44" ry="26" class={`fill-none stroke-2 transition-all ${selectedComponent === 'tires' ? 'stroke-brandGreen opacity-100' : 'stroke-brandGreen/30 opacity-40 hover:opacity-80'}`} filter="url(#glow-cyan)" />
+                  <ellipse cx="635" cy="340" rx="44" ry="26" class={`fill-none stroke-2 transition-all ${selectedComponent === 'tires' ? 'stroke-brandGreen opacity-100' : 'stroke-brandGreen/30 opacity-40 hover:opacity-80'}`} filter="url(#glow-cyan)" />
+                  <text x="235" y="310" fill="#22C55E" fontSize="8" fontWeight="bold" fontFamily="monospace" textAnchor="middle" opacity={selectedComponent === 'tires' ? 1 : 0}>33 PSI</text>
+                  <text x="635" y="310" fill="#22C55E" fontSize="8" fontWeight="bold" fontFamily="monospace" textAnchor="middle" opacity={selectedComponent === 'tires' ? 1 : 0}>34 PSI</text>
+                </g>
+
+                {/* 5. Brakes (Inside hubs) */}
+                <g onClick={() => setSelectedComponent('brakes')} class="cursor-pointer">
+                  <circle cx="235" cy="340" r="14" class={`fill-none stroke-2 transition-all ${selectedComponent === 'brakes' ? 'stroke-brandGreen opacity-100 animate-pulse' : 'stroke-brandGreen/30 opacity-40 hover:opacity-80'}`} />
+                  <circle cx="635" cy="340" r="14" class={`fill-none stroke-2 transition-all ${selectedComponent === 'brakes' ? 'stroke-brandGreen opacity-100 animate-pulse' : 'stroke-brandGreen/30 opacity-40 hover:opacity-80'}`} />
+                  <text x="235" y="343" fill="#ffffff" fontSize="8" fontWeight="bold" fontFamily="monospace" textAnchor="middle" pointerEvents="none" opacity={selectedComponent === 'brakes' ? 1 : 0}>DISC</text>
+                </g>
+
+                {/* Connection mapping lines */}
+                {selectedComponent === 'engine' && (
+                  <path d="M 230,250 L 230,80 L 320,80" fill="none" stroke="#00E5FF" strokeWidth="1.5" strokeDasharray="3,3" />
+                )}
+                {selectedComponent === 'cooling' && (
+                  <path d="M 148,275 L 148,60 L 250,60" fill="none" stroke={simMode === 'critical' ? '#EF4444' : simMode === 'warning' ? '#F59E0B' : '#00E5FF'} strokeWidth="1.5" strokeDasharray="3,3" />
+                )}
+              </svg>
+            </div>
+
+            <div class="w-full flex items-center justify-between text-textSecondary text-[11px] font-mono border-t border-white/5 pt-4">
+              <span>* Click on motor, battery array, brakes, radiator cooling, or tires to view diagnostics.</span>
+              <span class="text-brandCyan font-bold">Hyundai Creta EV Digital Twin</span>
+            </div>
+          </div>
+
+          {/* Subsystem Telemetry details */}
+          <div class="lg:col-span-1 glass-panel p-6 rounded-2xl flex flex-col justify-between space-y-6">
+            {selected ? (
+              <div class="space-y-6 flex-1 flex flex-col justify-between">
+                <div class="space-y-4">
+                  <div class="flex justify-between items-start">
+                    <div>
+                      <h4 class="text-md font-bold text-white leading-tight">{selected.name}</h4>
+                      <p class="text-[10px] text-textSecondary font-mono uppercase mt-1">Telemetry Diagnostics</p>
+                    </div>
+                    
+                    <span class={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${
+                      selected.status === 'critical' ? 'text-brandRed border-brandRed/20 bg-brandRed/10 animate-pulse' :
+                      selected.status === 'warning' ? 'text-brandAmber border-brandAmber/20 bg-brandAmber/10' :
+                      'text-brandGreen border-brandGreen/20 bg-brandGreen/10'
+                    }`}>
+                      {selected.status}
+                    </span>
+                  </div>
+
+                  <p class="text-xs text-textSecondary leading-relaxed bg-white/5 p-3 rounded-xl border border-white/5">
+                    {selected.desc}
+                  </p>
+
+                  <div class="grid grid-cols-2 gap-4 pt-2">
+                    <div class="glass-panel p-3.5 rounded-xl border border-white/5">
+                      <span class="text-[10px] text-textSecondary block uppercase font-mono">Status SOH</span>
+                      <span class="text-xl font-mono font-bold text-white mt-1 block">{selected.health}%</span>
+                    </div>
+                    <div class="glass-panel p-3.5 rounded-xl border border-white/5">
+                      <span class="text-[10px] text-textSecondary block uppercase font-mono">Operating Temp</span>
+                      <span class="text-xl font-mono font-bold text-white mt-1 block">{selected.temp}</span>
+                    </div>
+                    <div class="glass-panel p-3.5 rounded-xl border border-white/5">
+                      <span class="text-[10px] text-textSecondary block uppercase font-mono">Service Due</span>
+                      <span class="text-xl font-mono font-bold text-white mt-1 block">{selected.life}</span>
+                    </div>
+                    <div class="glass-panel p-3.5 rounded-xl border border-white/5">
+                      <span class="text-[10px] text-textSecondary block uppercase font-mono">Service Cost</span>
+                      <span class="text-xl font-mono font-bold text-white mt-1 block">{selected.cost}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="space-y-3 pt-6 border-t border-white/5">
+                  <button 
+                    onClick={() => alert(`Running automated active diagnostics loop... Success.`)}
+                    class="w-full py-2.5 rounded-xl border border-white/10 hover:border-brandCyan hover:text-brandCyan font-bold font-mono text-xs transition-all uppercase tracking-widest bg-white/5 flex items-center justify-center gap-2"
+                  >
+                    <Icon name="activity" className="w-4 h-4" />
+                    Query Diagnostic Bus
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div class="flex-1 flex flex-col items-center justify-center text-center p-6 space-y-4">
+                <div class="w-16 h-16 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-textSecondary animate-float">
+                  <Icon name="info" className="w-8 h-8" />
+                </div>
+                <div>
+                  <h4 class="text-sm font-bold text-white">Select a Hardware Subsystem</h4>
+                  <p class="text-xs text-textSecondary mt-1 leading-relaxed max-w-[200px] mx-auto">
+                    Choose a highlighted section on the schematic to display current temperature, estimated service timeline, and repair cost.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+        </div>
+      );
+    };
+
+    // --- SERVICE PLANNER ---
+    const MaintenancePlannerPage = () => {
+      const { simMode, telemetry } = useSimulation();
+
+      const tasks = [
+        {
+          id: 1,
+          name: 'Inspect Cooling Liquid Level & Hose Seal',
+          priority: simMode !== 'normal' ? 'SERVICE REQUEST' : 'RECOMMENDED',
+          cost: '₹4,200',
+          time: '2 Hours',
+          diff: 'Standard',
+          status: simMode !== 'normal' ? 'immediate' : 'upcoming',
+          color: simMode !== 'normal' ? 'border-brandRed/30 text-brandRed' : 'border-brandCyan/20 text-brandCyan'
+        },
+        {
+          id: 2,
+          name: 'Drive Gearbox Lubrication Check',
+          priority: 'SCHEDULED (IN 24 DAYS)',
+          cost: '₹8,500',
+          time: '3 Hours',
+          diff: 'Advanced',
+          status: 'upcoming',
+          color: 'border-white/10 text-textSecondary'
+        },
+        {
+          id: 3,
+          name: 'Cabin Climate Heating Coil Check',
+          priority: 'RECOMMENDED (IN 45 DAYS)',
+          cost: '₹3,800',
+          time: '1 Hour',
+          diff: 'Standard',
+          status: 'recommended',
+          color: 'border-white/10 text-textSecondary'
+        }
+      ];
+
+      return (
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          <div class="lg:col-span-2 space-y-6">
+            
+            <div class="glass-panel p-6 rounded-2xl">
+              <div class="flex justify-between items-center mb-6">
+                <div>
+                  <h3 class="text-sm font-bold text-white uppercase tracking-wider font-mono">Service Planner Timeline</h3>
+                  <p class="text-[10px] text-textSecondary font-mono mt-0.5">Recommendations populated from telemetry trends</p>
+                </div>
+                
+                <span class="text-[9px] bg-brandGreen/10 text-brandGreen border border-brandGreen/20 px-2 py-0.5 rounded font-mono">
+                  Telemetry Optimized
+                </span>
+              </div>
+
+              <div class="space-y-4">
+                {tasks.map(task => (
+                  <div 
+                    key={task.id} 
+                    class={`p-5 rounded-xl bg-white/5 border flex flex-col sm:flex-row justify-between sm:items-center gap-4 transition-all hover:bg-white/10 ${
+                      task.status === 'immediate' ? 'border-brandRed/45 shadow-[0_0_10px_rgba(239,68,68,0.1)]' : 'border-white/5'
+                    }`}
+                  >
+                    <div class="space-y-2">
+                      <span class={`text-[9px] font-mono font-bold px-2 py-0.5 rounded border tracking-wider uppercase bg-white/5 ${task.color}`}>
+                        {task.priority}
+                      </span>
+                      <h4 class="text-sm font-bold text-white">{task.name}</h4>
+                      
+                      <div class="flex gap-4 text-[10px] text-textSecondary font-mono">
+                        <span>Est Cost: <strong class="text-white">{task.cost}</strong></span>
+                        <span>Duration: <strong class="text-white">{task.time}</strong></span>
+                        <span>Expertise: <strong class="text-white">{task.diff}</strong></span>
+                      </div>
+                    </div>
+
+                    <button 
+                      onClick={() => alert(`Service request booked with local dealer network.`)}
+                      class={`px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all ${
+                        task.status === 'immediate'
+                          ? 'bg-brandRed text-white hover:bg-red-600 shadow-glowRed'
+                          : 'bg-white text-brandDark hover:bg-brandCyan hover:text-brandDark'
+                      }`}
+                    >
+                      {task.status === 'immediate' ? 'Book Service' : 'Approve Service'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Timeline Progress */}
+            <div class="glass-panel p-6 rounded-2xl space-y-4">
+              <h4 class="text-xs font-bold text-white uppercase font-mono tracking-wider">Predictive Service Timeline</h4>
+              
+              <div class="relative pt-6 pb-2 px-4">
+                <div class="absolute left-4 right-4 top-1/2 h-[2px] bg-white/10 -translate-y-1/2 -z-10"></div>
+                
+                <div class="grid grid-cols-4 gap-4 text-center font-mono">
+                  <div class="flex flex-col items-center gap-2">
+                    <div class={`w-4.5 h-4.5 rounded-full border-2 border-brandDark z-10 flex items-center justify-center ${
+                      simMode === 'critical' ? 'bg-brandRed animate-pulse' : 'bg-brandGreen'
+                    }`}></div>
+                    <span class="text-[10px] font-bold text-white">TODAY</span>
+                    <span class="text-[8px] text-textSecondary">Radiator valve inspection</span>
+                  </div>
+
+                  <div class="flex flex-col items-center gap-2">
+                    <div class="w-4.5 h-4.5 rounded-full border-2 border-brandDark bg-brandGreen z-10"></div>
+                    <span class="text-[10px] font-bold text-white">3 DAYS</span>
+                    <span class="text-[8px] text-textSecondary">Coolant fluid flush</span>
+                  </div>
+
+                  <div class="flex flex-col items-center gap-2">
+                    <div class="w-4.5 h-4.5 rounded-full border-2 border-brandDark bg-brandAmber z-10"></div>
+                    <span class="text-[10px] font-bold text-white">10 DAYS</span>
+                    <span class="text-[8px] text-textSecondary">Hose wear check</span>
+                  </div>
+
+                  <div class="flex flex-col items-center gap-2">
+                    <div class="w-4.5 h-4.5 rounded-full border-2 border-brandDark bg-brandAmber z-10"></div>
+                    <span class="text-[10px] font-bold text-white">20 DAYS</span>
+                    <span class="text-[8px] text-textSecondary">Brake wear check</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Timeline Summary & Stats */}
+          <div class="lg:col-span-1 space-y-6">
+            <div class="glass-panel p-6 rounded-2xl space-y-4">
+              <h3 class="text-sm font-bold text-white uppercase tracking-wider font-mono">Service Summary</h3>
+              
+              <div class="space-y-3 pt-2">
+                <div class="flex justify-between py-1.5 border-b border-white/5 text-xs font-mono">
+                  <span class="text-textSecondary">System Status</span>
+                  <span class={`font-bold ${simMode === 'critical' ? 'text-brandRed animate-pulse' : simMode === 'warning' ? 'text-brandAmber' : 'text-brandGreen'}`}>
+                    {simMode === 'critical' ? 'IMMEDIATE REPAIR' : simMode === 'warning' ? 'SERVICE RECOMMENDED' : 'ALL GOOD'}
+                  </span>
+                </div>
+                <div class="flex justify-between py-1.5 border-b border-white/5 text-xs font-mono">
+                  <span class="text-textSecondary">Outstanding Tasks</span>
+                  <span class="text-white font-bold">{simMode !== 'normal' ? '1' : '0'}</span>
+                </div>
+                <div class="flex justify-between py-1.5 border-b border-white/5 text-xs font-mono">
+                  <span class="text-textSecondary">Estimated Cost</span>
+                  <span class="text-white font-bold">₹{telemetry.repairCost}</span>
+                </div>
+              </div>
+
+              <div class="p-3.5 rounded-xl bg-brandCyan/5 border border-brandCyan/10 text-[11px] text-textSecondary leading-normal">
+                Scheduling authorized service tasks in advance prevents core mechanical issues. Proactive repairs save approximately <strong class="text-white">₹24,300</strong> in secondary engine housing damage.
+              </div>
+            </div>
+          </div>
+
+        </div>
+      );
+    };
+
+    // --- AI MECHANIC PAGE ---
+    const AIMechanicPage = () => {
+      const { chatMessages, sendChatMessage, simMode, telemetry } = useSimulation();
+      const [input, setInput] = useState('');
+      const messagesEndRef = useRef(null);
+
+      const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      };
+
+      useEffect(() => {
+        scrollToBottom();
+      }, [chatMessages]);
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        if (!input.trim()) return;
+        sendChatMessage(input);
+        setInput('');
+      };
+
+      const suggestions = [
+        "Why is my engine overheating?",
+        "Can I drive another 50 km?",
+        "Why is my battery degrading?",
+        "How do I improve my range?"
+      ];
+
+      return (
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-14rem)] max-h-[600px]">
+          
+          <div class="lg:col-span-2 glass-panel rounded-2xl flex flex-col justify-between overflow-hidden h-full">
+            
+            {/* Header */}
+            <div class="p-4 border-b border-white/5 flex items-center justify-between bg-white/2">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-brandCyan/10 border border-brandCyan/20 flex items-center justify-center">
+                  <Icon name="mechanic" className="w-5 h-5 text-brandCyan" />
+                </div>
+                <div>
+                  <h3 class="text-xs font-bold text-white tracking-wide">PulseDrive Co-Pilot</h3>
+                  <p class="text-[10px] text-brandGreen font-mono">Onboard Assistant Connected</p>
+                </div>
+              </div>
+
+              <span class="text-[9px] bg-brandCyan/15 text-brandCyan border border-brandCyan/25 px-2.5 py-0.5 rounded font-mono uppercase tracking-widest font-semibold">
+                SYSTEM ASSIST
+              </span>
+            </div>
+
+            {/* Chat Body */}
+            <div class="flex-1 p-5 overflow-y-auto space-y-4">
+              {chatMessages.map((msg, i) => {
+                const isAI = msg.sender === 'ai';
+                return (
+                  <div key={i} class={`flex gap-3 max-w-[85%] ${isAI ? '' : 'ml-auto flex-row-reverse'}`}>
+                    
+                    <div class={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                      isAI ? 'bg-brandCyan/15 border border-brandCyan/25 text-brandCyan' : 'bg-white/10 text-white'
+                    }`}>
+                      <Icon name={isAI ? 'mechanic' : 'user'} className="w-4.5 h-4.5" />
+                    </div>
+
+                    <div class={`p-3.5 rounded-2xl text-xs leading-relaxed ${
+                      isAI 
+                        ? 'glass-panel border-white/5 text-gray-100 rounded-tl-none' 
+                        : 'bg-gradient-to-r from-brandCyan/20 to-blue-600/25 border border-brandCyan/20 text-white rounded-tr-none'
+                    }`}>
+                      <p class="whitespace-pre-line">{msg.text}</p>
+                      <span class="text-[8px] text-textSecondary font-mono block mt-1.5 text-right">{msg.time}</span>
+                    </div>
+
+                  </div>
+                );
+              })}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Suggestions Overlay */}
+            <div class="px-4 py-2 border-t border-white/5 flex gap-2 overflow-x-auto whitespace-nowrap bg-brandDark/20">
+              {suggestions.map((s, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => sendChatMessage(s)}
+                  class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/5 hover:border-brandCyan/35 text-[10px] text-textSecondary hover:text-white transition-all font-mono"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+
+            {/* Chat Input */}
+            <form onSubmit={handleSubmit} class="p-4 border-t border-white/5 flex gap-3 bg-brandCard/40">
+              <input
+                type="text"
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                placeholder="Ask about active diagnostics, warning codes, or driving suggestions..."
+                class="flex-1 glass-input py-2.5 px-4 rounded-xl text-xs"
+              />
+              <button 
+                type="submit"
+                class="px-4 rounded-xl bg-brandCyan hover:bg-brandCyan/90 text-brandDark font-bold text-xs flex items-center justify-center transition-all shadow-glowCyan"
+              >
+                <Icon name="send" className="w-4 h-4" />
+              </button>
+            </form>
+          </div>
+
+          {/* Quick Diagnostics Reference */}
+          <div class="lg:col-span-1 space-y-6 h-full flex flex-col justify-between">
+            <div class="glass-panel p-6 rounded-2xl flex-1 flex flex-col justify-between">
+              <div class="space-y-4">
+                <h4 class="text-xs font-bold text-white uppercase font-mono tracking-wider">Diagnosis Profile</h4>
+                
+                <div class="space-y-3 pt-2 text-xs font-mono">
+                  <div class="flex justify-between py-1.5 border-b border-white/5">
+                    <span class="text-textSecondary font-semibold">Engine Temp</span>
+                    <span class="text-white font-bold">{telemetry.engineTemp}°C</span>
+                  </div>
+                  <div class="flex justify-between py-1.5 border-b border-white/5">
+                    <span class="text-textSecondary font-semibold">Classification</span>
+                    <span class={`font-bold ${simMode === 'critical' ? 'text-brandRed' : simMode === 'warning' ? 'text-brandAmber' : 'text-brandGreen'}`}>
+                      {simMode === 'critical' ? 'CRITICAL FAULT' : simMode === 'warning' ? 'ATTENTION' : 'NOMINAL'}
+                    </span>
+                  </div>
+                  <div class="flex justify-between py-1.5 border-b border-white/5">
+                    <span class="text-textSecondary font-semibold">Diagnostic Conf.</span>
+                    <span class="text-white font-bold">{simMode === 'critical' ? '99.8%' : simMode === 'warning' ? '92.0%' : '100%'}</span>
+                  </div>
+                  <div class="flex justify-between py-1">
+                    <span class="text-textSecondary font-semibold">Bus Speed</span>
+                    <span class="text-brandGreen font-bold">100Hz</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="p-3.5 rounded-xl bg-white/5 border border-white/5 text-[11px] text-textSecondary leading-normal mt-6">
+                <strong class="text-brandCyan">Diagnostics Engine Active:</strong> Monitoring physical parameters across CAN-Bus networks.
+              </div>
+            </div>
+          </div>
+
+        </div>
+      );
+    };
+
+    // --- SETTINGS PAGE ---
+    const SettingsPage = () => {
+      const { simMode, setSimMode, isSimRunning, setIsSimRunning } = useSimulation();
+
+      return (
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          <div class="lg:col-span-2 glass-panel p-6 rounded-2xl space-y-6">
+            <h3 class="text-sm font-bold text-white uppercase tracking-wider font-mono">Telemetry Simulator Settings</h3>
+            
+            <div class="p-5 rounded-xl bg-white/5 border border-white/5 space-y-4">
+              <div>
+                <h4 class="text-xs font-bold text-white">Manual Anomaly Simulation</h4>
+                <p class="text-[10px] text-textSecondary mt-0.5">Toggle vehicle states to demonstrate diagnostic flows and warnings</p>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                <button
+                  onClick={() => setSimMode('normal')}
+                  class={`p-4 rounded-xl border flex flex-col justify-between text-left transition-all ${
+                    simMode === 'normal' 
+                      ? 'border-brandGreen/45 bg-brandGreen/5 text-brandGreen shadow-glowGreen' 
+                      : 'border-white/5 hover:border-white/10 text-white'
+                  }`}
+                >
+                  <span class="text-xs font-bold font-mono">NORMAL OPERATION</span>
+                  <span class="text-[10px] text-textSecondary mt-1 leading-normal">Systems healthy. Engine core at 85°C. Risk 8%.</span>
+                </button>
+
+                <button
+                  onClick={() => setSimMode('warning')}
+                  class={`p-4 rounded-xl border flex flex-col justify-between text-left transition-all ${
+                    simMode === 'warning' 
+                      ? 'border-brandAmber/45 bg-brandAmber/5 text-brandAmber shadow-glowAmber' 
+                      : 'border-white/5 hover:border-white/10 text-white'
+                  }`}
+                >
+                  <span class="text-xs font-bold font-mono">WARNING STATE</span>
+                  <span class="text-[10px] text-textSecondary mt-1 leading-normal">Coolant drops to 55%. Radiator temp rises to 102°C.</span>
+                </button>
+
+                <button
+                  onClick={() => setSimMode('critical')}
+                  class={`p-4 rounded-xl border flex flex-col justify-between text-left transition-all ${
+                    simMode === 'critical' 
+                      ? 'border-brandRed/45 bg-brandRed/5 text-brandRed shadow-glowRed' 
+                      : 'border-white/5 hover:border-white/10 text-white'
+                  }`}
+                >
+                  <span class="text-xs font-bold font-mono">CRITICAL TEMP</span>
+                  <span class="text-[10px] text-textSecondary mt-1 leading-normal">Coolant drops to 8%. Motor spikes to 118°C limit.</span>
+                </button>
+              </div>
+
+              <div class="flex items-center justify-between pt-4 border-t border-white/5">
+                <div>
+                  <h5 class="text-xs font-bold text-white">Onboard Telemetry Updates</h5>
+                  <p class="text-[10px] text-textSecondary mt-0.5">Let sensor values update in real-time with slight driving vibrations</p>
+                </div>
+                
+                <button
+                  onClick={() => setIsSimRunning(!isSimRunning)}
+                  class={`px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all ${
+                    isSimRunning ? 'bg-brandCyan text-brandDark shadow-glowCyan' : 'bg-white/10 text-white'
+                  }`}
+                >
+                  {isSimRunning ? 'Active' : 'Paused'}
+                </button>
+              </div>
+            </div>
+
+            <div class="p-5 rounded-xl bg-white/5 border border-white/5 space-y-4">
+              <h4 class="text-xs font-bold text-white uppercase font-mono tracking-wider">On-Board Module Information</h4>
+              
+              <div class="grid grid-cols-2 gap-4 text-xs font-mono">
+                <div>
+                  <span class="text-textSecondary block uppercase">VIN</span>
+                  <span class="text-white mt-1 block">MAL3H8K2P9D81273</span>
+                </div>
+                <div>
+                  <span class="text-textSecondary block uppercase">Model Name</span>
+                  <span class="text-white mt-1 block">Hyundai Creta EV 2026</span>
+                </div>
+                <div>
+                  <span class="text-textSecondary block uppercase">Software Version</span>
+                  <span class="text-white mt-1 block">PD-OS-10.2.14-RELEASE</span>
+                </div>
+                <div>
+                  <span class="text-textSecondary block uppercase">Hardware Connection</span>
+                  <span class="text-brandGreen font-bold mt-1 block">CAN-BUS Active</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="lg:col-span-1 space-y-6">
+            <div class="glass-panel p-6 rounded-2xl space-y-4">
+              <h4 class="text-xs font-bold text-white uppercase font-mono tracking-wider">Demonstration Script Guide</h4>
+              <p class="text-xs text-textSecondary leading-relaxed">
+                To demonstrate <strong>PulseDrive</strong> features:
+              </p>
+              <ol class="text-xs text-textSecondary space-y-2 list-decimal pl-4 leading-normal">
+                <li>Load dashboard under <strong>Normal Operation</strong> (shows 96% health and green widgets).</li>
+                <li>Go to <strong>Digital Twin</strong> or <strong>Co-Pilot Guide</strong> tab.</li>
+                <li>Click <strong>Warning State</strong> in top bar or Settings. Observe temperature climb and warning alert slide in.</li>
+                <li>Switch to <strong>Critical Temp</strong>. Observe the dashboard turn red, emergency navigation banner appearing, and Co-Pilot recommendation in the chat module.</li>
+              </ol>
+            </div>
+          </div>
+
+        </div>
+      );
+    };
+
+    // --- Main Layout Container ---
+    const MainLayout = () => {
+      const { activeTab, simMode } = useSimulation();
+
+      return (
+        <div class="relative flex min-h-screen overflow-hidden z-10">
+          <CanvasBackground />
+
+          <Sidebar />
+
+          <div class="flex-1 flex flex-col overflow-y-auto px-4 pb-8 space-y-4 h-screen">
+            
+            <Topbar />
+
+            <EmergencyBanner />
+
+            <main class="flex-grow z-10">
+              {activeTab === 'health' && <VehicleHealthPage />}
+              {activeTab === 'twin' && <DigitalTwinPage />}
+              {activeTab === 'planner' && <MaintenancePlannerPage />}
+              {activeTab === 'mechanic' && <AIMechanicPage />}
+              {activeTab === 'settings' && <SettingsPage />}
+            </main>
+          </div>
+        </div>
+      );
+    };
+
+    // --- Root Render ---
+    const App = () => {
+      return (
+        <SimulationProvider>
+          <MainLayout />
+        </SimulationProvider>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
